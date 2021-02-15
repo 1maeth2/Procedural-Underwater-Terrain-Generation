@@ -1,0 +1,74 @@
+#version 430 core
+
+layout  (local_size_x  =  1024, local_size_y  =  1, local_size_z  =  1)  in;
+
+layout(std430, binding=0) buffer align{
+    float alignment[];
+};
+layout(std430, binding=1) buffer cohese{
+    float cohesion[];
+};
+layout(std430, binding=2) buffer seperate{
+    float seperation[];
+};
+
+layout(std430, binding=3) buffer acc{
+    float acceleration[];
+};
+layout(std430, binding=4) buffer pos{
+    float positions[];
+};
+
+uniform float avoidance_radius;
+uniform float perception_radius;
+
+float[9] flock(vec3 p1){
+	vec3 a;
+	vec3 c;
+	vec3 s;
+	int avoidance_num = 0;
+	int total_num = 0;
+	float data[9];
+	for(int i = 0; i<positions.length/3; i++){
+		vec3 p2 =  vec3(positions[i*3],positions[i*3+1],positions[i*3+2]);
+		vec3 accel = vec3(acceleration[i*3],acceleration[i*3+1],acceleration[i*3+2]);
+		float dist = length(p2-p1);
+		if(dist != 0){
+			if(dist < perception_radius){
+				a += accel;
+				c +=  p2;
+				total_num++;
+				if(dist < avoidance_radius){
+					vec3 diff = p1-p2;
+					diff /= dist*dist;
+					s += diff;
+					avoidance_num++;
+				}
+			}
+		}
+	}
+	if(total_num > 0){
+		a /= total_num;
+		c /= total_num;
+		s /= avoidance_num;
+	}
+	data[0] = a.x;
+	data[1] = a.y;
+	data[2] = a.z;
+	data[3] = c.x;
+	data[4] = c.y;
+	data[5] = c.z;
+	data[6] = s.x;
+	data[7] = s.y;
+	data[8] = s.z;
+	return data;
+}
+void main(){
+	vec3 thisPosition = vec3(positions[int(gl_GlobalInvocationID)*3],positions[int(gl_GlobalInvocationID)*3+1],positions[int(gl_GlobalInvocationID)*3+2]);
+	float data[9] = flock(thisPosition);
+	for(int i = 0; i<3; i++){
+		alignment[gl_GlobalInvocationID.x*3+i] = data[i];
+		cohesion[gl_GlobalInvocationID.x*3+i] = data[i+3];
+		seperation[gl_GlobalInvocationID.x*3+i] = data[i+6];
+	}	
+}
